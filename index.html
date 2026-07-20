@@ -295,20 +295,51 @@
                     // Guardado Final
                     if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
                         if (lat !== 0 || lng !== 0) { // Omitir 0,0
-                            // Buscar Especie (Prioridad Columna O - Índice 14) y Estadio (Prioridad Columna N - Índice 13)
-                            let especieRaw = cols.length > 14 && cols[14] && cols[14].trim() !== '' ? cols[14].trim() : (espIdx !== -1 && cols[espIdx] ? cols[espIdx].trim() : 'Desconocida');
+                            // Buscar Especie (Prioridad Columna O - Índice 14) 
+                            let especieBruta = cols.length > 14 && cols[14] && cols[14].trim() !== '' ? cols[14].trim() : (espIdx !== -1 && cols[espIdx] ? cols[espIdx].trim() : '');
+                            
+                            // 🧹 LIMPIADOR Y FILTRO ESTRICTO MULTI-ESPECIE
+                            let espBuscadora = especieBruta.toLowerCase();
+                            let especiesEncontradas = [];
+
+                            // 1. Buscamos Pseudopunctipennis
+                            if (espBuscadora.includes('pseudo')) {
+                                especiesEncontradas.push('Anopheles pseudopunctipennis');
+                                // Lo "borramos" temporalmente de la frase para que la palabra "punctipennis" que lleva adentro no nos haga un falso positivo
+                                espBuscadora = espBuscadora.replace(/pseudo[a-z]*/g, '');
+                            }
+
+                            // 2. Buscamos Quadrimaculatus
+                            if (espBuscadora.includes('quadri') || espBuscadora.includes('cuadri')) {
+                                especiesEncontradas.push('Anopheles quadrimaculatus');
+                            }
+
+                            // 3. Buscamos Punctipennis puro (ahora es seguro porque ya quitamos la palabra "pseudo")
+                            if (espBuscadora.includes('puncti') || espBuscadora.includes('punti')) { 
+                                especiesEncontradas.push('Anopheles punctipennis');
+                            }
+
+                            // 🚫 FILTRO DE ELIMINACIÓN: Si no detectó ninguna de las 3, saltamos el registro
+                            if (especiesEncontradas.length === 0) {
+                                continue; 
+                            }
+
+                            // Buscar Estadio (Prioridad Columna N - Índice 13)
                             let estadioRaw = cols.length > 13 && cols[13] && cols[13].trim() !== '' ? cols[13].trim() : (estIdx !== -1 && cols[estIdx] ? cols[estIdx].trim() : 'No definido');
                             
-                            data.push({
-                                id: i,
-                                lat: lat,
-                                lng: lng,
-                                jurisdiccion: jurIdx !== -1 && cols[jurIdx] ? cols[jurIdx] : 'Jurisdicción Sanitaria 6',
-                                municipio: munIdx !== -1 && cols[munIdx] ? cols[munIdx] : 'No definido',
-                                localidad: locIdx !== -1 && cols[locIdx] ? cols[locIdx] : 'No definida',
-                                especie: especieRaw,
-                                estadio: estadioRaw,
-                                casos: casosIdx !== -1 && cols[casosIdx] ? parseInt(cols[casosIdx], 10) || 1 : 1
+                            // 🔄 MULTI-REGISTRO: Si encontraron 2 especies en la misma celda (Ej: pseudo/puncti), creamos un punto para cada una
+                            especiesEncontradas.forEach((especieLimpia, subIdx) => {
+                                data.push({
+                                    id: `${i}-${subIdx}`, // ID único para evitar choques
+                                    lat: lat,
+                                    lng: lng,
+                                    jurisdiccion: jurIdx !== -1 && cols[jurIdx] ? cols[jurIdx] : 'Jurisdicción Sanitaria 6',
+                                    municipio: munIdx !== -1 && cols[munIdx] ? cols[munIdx] : 'No definido',
+                                    localidad: locIdx !== -1 && cols[locIdx] ? cols[locIdx] : 'No definida',
+                                    especie: especieLimpia,
+                                    estadio: estadioRaw,
+                                    casos: 1 // Al separarlos, cuenta como 1 caso por especie para no inflar la estadística por error
+                                });
                             });
                         }
                     }
@@ -354,12 +385,28 @@
                     if (d.estadio) est.add(d.estadio);
                 });
                 
-                // Generador dinámico de paleta de colores para las especies reales
+                // 🎨 ASIGNACIÓN DE COLORES FIJOS INSTITUCIONALES
+                const coloresFijos = {
+                    'Anopheles pseudopunctipennis': '#f43f5e', // Rosa Intenso
+                    'Anopheles quadrimaculatus': '#0ea5e9',    // Azul Celeste
+                    'Anopheles punctipennis': '#10b981',       // Verde Esmeralda
+                    'Desconocida': '#64748b'                   // Gris
+                };
+
                 const especiesArray = Array.from(esp).sort();
-                const paletaDinamica = ['#f43f5e', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
                 const coloresMap = {};
-                especiesArray.forEach((especie, index) => {
-                    coloresMap[especie] = paletaDinamica[index % paletaDinamica.length];
+                
+                // Colores extra por si algún día registras una especie nueva que no sean las 3 de arriba
+                const paletaExtra = ['#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                let indexExtra = 0;
+
+                especiesArray.forEach((especie) => {
+                    if (coloresFijos[especie]) {
+                        coloresMap[especie] = coloresFijos[especie]; // Aplica el color fijo
+                    } else {
+                        coloresMap[especie] = paletaExtra[indexExtra % paletaExtra.length]; // Aplica color dinámico a las raras
+                        indexExtra++;
+                    }
                 });
 
                 return {
@@ -397,10 +444,10 @@
                             </div>
                             <div>
                                 <h1 className="text-lg md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 tracking-wider">
-                                    PALUDISMO <span className="font-light text-slate-400 hidden sm:inline">| Vigilancia Entomologica</span>
+                                    PALUDISMO <span className="font-light text-slate-400 hidden sm:inline">| Vigilancia Ento-Epidemiológica</span>
                                 </h1>
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                                    JURISDICCIÓN SANITARIA No. 6 
+                                    Centro de Inteligencia Espacial
                                 </p>
                             </div>
                         </div>
