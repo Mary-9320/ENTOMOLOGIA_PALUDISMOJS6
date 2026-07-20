@@ -44,6 +44,16 @@
         // ============================================================================
         const URL_DATOS_PALUDISMO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSmUYzKkF9DyvaRwTKsmAUcGLjYtY9eKHf-EawZlXlNIyQR29rwPvWwx7KwYKDzsNWfooV69MIuvHX3/pub?gid=1233922753&single=true&output=csv'; 
 
+        // --- BASE DE DATOS FIJA: RED DE NOTIFICANTES ---
+        const RED_NOTIFICANTES = [
+            { nombre: "Samuel Garza", lugar: "Rancho El Gigante", direccion: "Ejido Palmitos S/N", lat: 25.46698, lng: -99.98394 },
+            { nombre: "Pastor Manuel Rosales", lugar: "Iglesia Lirio de los Valles", direccion: "Ejido la Haciendita S/N", lat: 25.51675, lng: -99.76362 },
+            { nombre: "Isabel Garza", lugar: "Productos Hortícolas Garza", direccion: "Ejido casas viejas S/N", lat: 25.47294, lng: -99.92399 },
+            { nombre: "Aero Tours", lugar: "Agencia de viajes Aerotours", direccion: "Mutualismo 102 Col Centro", lat: 25.59212, lng: -100.00023 },
+            { nombre: "Excel Tours", lugar: "Agencia de viajes Excel Tours", direccion: "Rosendo Garza 112 Col Centro", lat: 25.59120, lng: -100.00423 },
+            { nombre: "Cano Tours", lugar: "Agencia de viajes Cano Tours", direccion: "Gómez Farías 307 Col. López Mateos", lat: 25.58066, lng: -100.00786 }
+        ];
+
         class ErrorBoundary extends React.Component {
             constructor(props) { super(props); this.state = { hasError: false, errorInfo: null }; }
             static getDerivedStateFromError(error) { return { hasError: true, errorInfo: error }; }
@@ -62,7 +72,7 @@
             }
         }
 
-        function MapaInteractivo({ data, mapStyle, coloresEspecie }) {
+        function MapaInteractivo({ data, mapStyle, coloresEspecie, mostrarNotificantes }) {
             const mapRef = useRef(null);
             const mapInstance = useRef(null);
             const tileLayerInstance = useRef(null);
@@ -154,6 +164,31 @@
                             }
                         });
                         
+                        // --- 🏥 DIBUJAR PUESTOS NOTIFICANTES EN EL MAPA ---
+                        if (mostrarNotificantes) {
+                            RED_NOTIFICANTES.forEach(puesto => {
+                                // Creación de un Icono HTML Azul tipo "Hospital/Centro Médico"
+                                const iconHtml = `<div style="background-color: #3b82f6; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 2px solid #ffffff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);"><i class="fa-solid fa-house-medical" style="font-size: 14px;"></i></div>`;
+                                const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
+                                
+                                const marker = L.marker([puesto.lat, puesto.lng], { icon: customIcon }).addTo(markerGroupInstance.current);
+                                
+                                const popupContent = `
+                                    <div style="font-family: sans-serif; min-width: 200px;">
+                                        <p style="font-weight: bold; color: #60a5fa; margin: 0 0 6px 0; border-bottom: 1px solid #334155; padding-bottom: 4px; font-size: 14px;">
+                                            <i class="fa-solid fa-tower-observation" style="margin-right:4px;"></i> Red de Notificantes
+                                        </p>
+                                        <p style="font-size: 13px; margin: 0 0 2px 0; color: white;"><b>${puesto.lugar}</b></p>
+                                        <p style="font-size: 12px; margin: 0 0 2px 0; color: #cbd5e1;"><b>Contacto:</b> ${puesto.nombre}</p>
+                                        <p style="font-size: 12px; margin: 0 0 6px 0; color: #cbd5e1;"><b>Dirección:</b> ${puesto.direccion}</p>
+                                    </div>
+                                `;
+                                marker.bindPopup(popupContent);
+                                bounds.extend([puesto.lat, puesto.lng]); // Ampliamos la cámara para que los incluya a todos
+                                validPointsCount++;
+                            });
+                        }
+                        
                         // Protección Anti-Crash: Centrar el mapa solo si hay puntos válidos y la ventana existe
                         if (validPointsCount > 0 && bounds.isValid()) {
                             const executeSafeFlyTo = () => {
@@ -196,6 +231,9 @@
             const [filtroEspecie, setFiltroEspecie] = useState('Todas');
             const [filtroEstadio, setFiltroEstadio] = useState('Todos');
             const [mapStyle, setMapStyle] = useState('oscuro');
+            
+            // Nuevo Estado: Mostrar Puestos Notificantes
+            const [mostrarNotificantes, setMostrarNotificantes] = useState(true);
 
             // Función para dividir filas CSV ignorando comas dentro de comillas
             const splitCSVRowSafe = (row) => {
@@ -535,6 +573,21 @@
                                             </select>
                                         </div>
                                     </div>
+
+                                    {/* Botón Interruptor para Puestos Notificantes */}
+                                    <div className="pt-2">
+                                        <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-800 bg-slate-950/50 hover:bg-slate-800 transition-colors select-none">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={mostrarNotificantes} onChange={() => setMostrarNotificantes(!mostrarNotificantes)} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${mostrarNotificantes ? 'bg-blue-500' : 'bg-slate-700'}`}></div>
+                                                <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${mostrarNotificantes ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-bold text-white flex items-center gap-2"><i className="fa-solid fa-house-medical text-blue-400"></i> Red Notificantes</span>
+                                                <span className="text-[9px] text-slate-400">Mostrar agencias y puestos de reporte</span>
+                                            </div>
+                                        </label>
+                                    </div>
                                     
                                     {/* Leyenda Dinámica */}
                                     <div className="pt-4 mt-2 border-t border-slate-800">
@@ -583,7 +636,12 @@
                                     <p className="font-medium text-slate-300 max-w-md">{errorMsg}</p>
                                 </div>
                             ) : (
-                                <MapaInteractivo data={datosFiltrados} mapStyle={mapStyle} coloresEspecie={listas.colores} />
+                                <MapaInteractivo 
+                                    data={datosFiltrados} 
+                                    mapStyle={mapStyle} 
+                                    coloresEspecie={listas.colores} 
+                                    mostrarNotificantes={mostrarNotificantes} 
+                                />
                             )}
                         </div>
                     </main>
@@ -600,3 +658,4 @@
     </script>
 </body>
 </html>
+                    
